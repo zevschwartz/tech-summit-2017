@@ -1,0 +1,147 @@
+Blank tech-summit project
+
+Agenda, conference-service
+
+Core
+    devtools
+    lombok
+web
+    web
+    rest repositories
+    rest repositories hal browser
+sql
+   jpa
+   h2
+cloud config
+   config-server
+Cloud Messaging
+    Stream Kafka
+ops
+    actuator
+
+
+
+1. create restcontroller with simple "hello" (ensure port 8081) "Welcome to Tech Summit"
+2. modify restcontroller to take config value @value "Welcome to Tech Summit ${year}"
+3. modify restcontroller to use configurationproperty
+4. add personentity
+5. add personrepository
+6. add personservice
+7. add person that calls findAll
+8. add commandlinerunnner to insert records
+9. show endpoint with commandlinerunnner's values
+10. add method to repo	Optional<Person> findByFirstNameIgnoreCase(@Param("name") String firstName)
+11. add service findByName
+12. add restcontroller method person/byname showing @RequestParam
+13. use orThrow to throw exception and add @ExceptionHandler and catch and display
+14. add postmapping to create person
+15. change to RepositoryRestResource and showoff 
+    discuss tradeoffs and some of the workarounds, projections, control whats shows etc...
+ 
+
+
+conference-client
+
+Core
+    devtools
+    lombok
+web
+    web
+cloud config
+   config-server
+Cloud Routing
+    Feign
+Cloud Circuit Breaker
+    Hystrix
+Cloud Messaging
+    Stream Kafka
+ops
+    actuator
+
+
+1. discuss client and sample use case (html, mobile etc... not couple with service)
+2. add person object and add ClientService.userList that uses resttemplate to read all values from 8081
+3. add as field with @Value to get the main address of the summit.url
+4. add restcontroller /user that reads the service method 
+5. easier way:  @EnableFeignClient,
+6. add interface RemoteService.getAllUsers() 
+7. add interface @FeignClient(name = "remote", url = "${summit.url:http://localhost:8081/conference-service}") 
+8. add @GetMapping("/person") to getAllUsers
+9. add ClientService.easyList which calls remoteService.getAllUsers
+10. add restcontroller @GetMapping("easy/user") that calls the ClientService
+11. add  to RemoteService @PostMapping("/person") Person createPerson(@RequestBody Person p);
+12. add to ClientService. Person createPerson(Person p) that uses remoteService
+13. add restcontroller Person createUser(@PathVariable String firstName, @PathVariable String lastName) 
+14. discuss PathVariable and use the ClientService.createUser
+15. what ifthings dont work, introduce hystrix, @EnableCircuitBreaker an
+16. @HystrixCommand(fallbackMethod = "giveUp") on ClientService.userList and giveup return empty person but log
+17. demonstrate   
+18. what if i need guarantees that my message will pass through always, eventually (discuss how can set retry in feign etc...)
+19. use kafka, @EnableBinding(Source.class)
+20. @MessagingGateway
+    interface RemoteServiceGateWay{
+        @Gateway(requestChannel = Source.OUTPUT)
+        void createNew(String personName);
+    }
+21. add service 
+public void createPersonInTheCloud(Person p){
+        remoteServiceGateWay.createNew(p.getFirstName()+"|"+p.getLastName());
+    }
+22. add resttemaplte 
+    @PostMapping("cloud/user/{firstName}/{lastName}")
+    public void createCloudUser(@PathVariable String firstName, @PathVariable String lastName) {
+        Person p = new Person();
+        p.setFirstName(firstName);
+        p.setLastName(lastName);
+        service.createPersonInTheCloud(p);
+    }
+23. application.properties spring.cloud.stream.bindings.output.destination=test-spring
+24. demonstrate and show how user endpoint doesnt contain it
+
+
+
+25. in server, application.properties spring.cloud.stream.bindings.input.destination=test-spring
+26. in server, @EnableBinding(Sink.class)
+27. in server @Slf4j
+@Data
+@MessageEndpoint
+class PersonProcessor{
+
+	private final PersonService service;
+
+	@ServiceActivator(inputChannel = Sink.INPUT)
+	public void createPerson(String personName){
+		log.info("received message with nme {}",personName);
+		String[] name = personName.split("\\|");
+		Person p = new Person();
+		p.setFirstName(name[0]);
+		p.setLastName(name[1]);
+		service.createPerson(p);
+	}
+}
+
+28. restart and show user endpoint now contains the new one
+
+
+
+29. config server application
+30 add properties 
+    server.port=8888
+    spring.cloud.config.server.git.uri=file:///Users/zevsch/Desktop/configs
+31. run
+
+
+32. in service add bootstrap.properties, delete application.properties, restart hopefully will still work
+33. discuss refreshscpoe andadd to controller
+34. hit POST http://localhost:8081/conference-service/refresh and note message
+35. edit property in git and add management.security.enabled=false
+36. commit and retart application
+37. show hello endpoint again
+38 in git change year and call actuator
+39. hit endpoint again
+40. Summarize, what did we do
+    created a service that easily connects to db and a client edge applications that easily connects with server. These are manageable with spring config
+     and fault tolerant with hystrix and/or kafka
+41. Whats next, lots more that i missed, including zipkin tracing and dashboard, load balancing, reverse proxies and service registries from which all are intertwined, including customer groups for kafka when
+there are multiple instances running and sending message, we dont want all getting them, simple application property customer group can solve this and etc...
+42. Spring 5 and nonblocking reactive streams so 
